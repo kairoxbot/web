@@ -25,7 +25,7 @@ function LoginScreen({ onLogin }) {
       })
       const data = await res.json()
       if (res.ok && data.token) {
-        try { localStorage.setItem('noobai_admin_token', data.token) } catch {}
+        try { localStorage.setItem('blackhole_admin_token', data.token) } catch {}
         onLogin(data.token)
       } else {
         setError(data.error || 'Credenciales incorrectas')
@@ -41,7 +41,7 @@ function LoginScreen({ onLogin }) {
     <div className="login-wrap">
       <div className="login-box">
         <div className="login-logo">
-          NOOB<span style={{ color: '#00aaff' }}>.</span>AI
+          BLACKHOLE<span style={{ color: '#00aaff' }}>.</span>AI
           <span className="login-sub">PANEL DE INTELIGENCIA</span>
         </div>
         <div className="login-line" />
@@ -71,7 +71,7 @@ function LoginScreen({ onLogin }) {
           </button>
         </form>
         <div className="login-footer">
-          NoobAI Threat Intelligence · Acceso restringido
+          BlackholeAI Threat Intelligence · Acceso restringido
         </div>
       </div>
 
@@ -187,7 +187,7 @@ export default function Admin() {
 
   useEffect(() => {
     try {
-      const t = localStorage.getItem('noobai_admin_token')
+      const t = localStorage.getItem('blackhole_admin_token')
       if (t) { setToken(t); setAuthed(true) }
     } catch {}
     setLoading(false)
@@ -201,7 +201,7 @@ export default function Admin() {
   }, [authed])
 
   const logout = () => {
-    try { localStorage.removeItem('noobai_admin_token') } catch {}
+    try { localStorage.removeItem('blackhole_admin_token') } catch {}
     setAuthed(false)
     setToken(null)
   }
@@ -211,7 +211,7 @@ export default function Admin() {
   if (!authed) {
     return (
       <>
-        <Head><title>NoobAI Admin</title></Head>
+        <Head><title>BlackholeAI Admin</title></Head>
         <LoginScreen onLogin={(t) => { setToken(t); setAuthed(true) }} />
       </>
     )
@@ -253,7 +253,7 @@ export default function Admin() {
   return (
     <>
       <Head>
-        <title>NoobAI — Threat Intel</title>
+        <title>BlackholeAI — Threat Intel</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
 
@@ -266,7 +266,7 @@ export default function Admin() {
         <div className="topbar">
           <div className="topbar-left">
             <div className="dash-logo">
-              NOOB<span style={{ color: '#00aaff' }}>.</span>AI
+              BLACKHOLE<span style={{ color: '#00aaff' }}>.</span>AI
               <span className="dash-sub">INTEL</span>
             </div>
             <div className="live-dot">
@@ -398,7 +398,7 @@ export default function Admin() {
         </div>
 
         <div className="dash-footer">
-          NoobAI Threat Intelligence · {new Date().getFullYear()}
+          BlackholeAI Threat Intelligence · {new Date().getFullYear()}
         </div>
       </div>
 
