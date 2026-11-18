@@ -2,6 +2,114 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
 
+// ── LANG DOT COLORS ──────────────────────────────────────────────────────────
+const LANG_DOT = {
+  javascript: '#f0db4f', js: '#f0db4f',
+  typescript: '#3178c6', ts: '#3178c6',
+  python: '#3572a5', py: '#3572a5',
+  rust: '#dea584',
+  go: '#00add8',
+  'c++': '#f34b7d', cpp: '#f34b7d',
+  c: '#7a7a7a',
+  java: '#b07219',
+  csharp: '#67af00', cs: '#67af00',
+  bash: '#89e051', sh: '#89e051', shell: '#89e051',
+  html: '#e34c26',
+  css: '#563d7c',
+  json: '#cbcb41',
+  sql: '#e38c00',
+  lua: '#00007c',
+  php: '#4f5d95',
+  ruby: '#cc342d', rb: '#cc342d',
+  swift: '#f05138',
+  kotlin: '#7f52ff',
+  gdscript: '#478cbf',
+}
+
+function CodeBlock({ lang, code }) {
+  const [copied, setCopied] = useState(false)
+
+  const copy = () => {
+    navigator.clipboard.writeText(code)
+      .then(() => { setCopied(true); setTimeout(() => setCopied(false), 1800) })
+      .catch(() => {})
+  }
+
+  const key = (lang || '').toLowerCase().replace(/\s+/g, '')
+  const dotColor = LANG_DOT[key] || '#555'
+  const displayLang = lang || 'code'
+
+  return (
+    <div style={{
+      margin: '14px 0',
+      border: '1px solid #252525',
+      background: '#070707',
+      overflow: 'hidden',
+      fontFamily: "'Courier New', Courier, monospace",
+    }}>
+      {/* ── HEADER BAR ── */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '8px 13px',
+        background: '#111',
+        borderBottom: '1px solid #1e1e1e',
+      }}>
+        {/* left: dot + badge */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
+          <span style={{
+            width: '9px', height: '9px',
+            borderRadius: '50%',
+            background: dotColor,
+            flexShrink: 0,
+            boxShadow: `0 0 7px ${dotColor}80`,
+          }} />
+          <span style={{
+            background: '#fff',
+            color: '#000',
+            fontSize: '10px',
+            fontWeight: 'bold',
+            letterSpacing: '2.5px',
+            padding: '3px 9px',
+            textTransform: 'uppercase',
+            fontFamily: "'Courier New', Courier, monospace",
+            lineHeight: 1.4,
+            userSelect: 'none',
+          }}>
+            {displayLang}
+          </span>
+        </div>
+        {/* right: copy button */}
+        <button onClick={copy} style={{
+          background: 'transparent',
+          border: `1px solid ${copied ? '#888' : '#2a2a2a'}`,
+          color: copied ? '#ccc' : '#444',
+          fontFamily: "'Courier New', Courier, monospace",
+          fontSize: '10px',
+          letterSpacing: '1.5px',
+          padding: '3px 10px',
+          cursor: 'pointer',
+          transition: 'all 0.15s',
+        }}>
+          {copied ? '✓ COPIED' : 'COPY'}
+        </button>
+      </div>
+      {/* ── CODE BODY ── */}
+      <pre style={{
+        padding: '14px 16px',
+        overflowX: 'auto',
+        fontSize: '13px',
+        lineHeight: 1.6,
+        color: '#e8e8e8',
+        margin: 0,
+      }}>
+        <code style={{ fontFamily: "'Courier New', Courier, monospace" }}>{code}</code>
+      </pre>
+    </div>
+  )
+}
+
 const SYSTEM_INTRO = [
   '    ███╗   ██╗ ██████╗  ██████╗ ██████╗      █████╗ ██╗',
   '    ████╗  ██║██╔═══██╗██╔═══██╗██╔══██╗    ██╔══██╗██║',
@@ -25,13 +133,18 @@ export default function Home() {
   const textareaRef = useRef(null)
   const abortRef = useRef(null)
 
+  // ── FIXED MODEL IDs ──────────────────────────────────────────────────────
+  // qwq-32b-preview → qwq-32b (preview suffix removed by OpenRouter)
+  // deepseek-chat → deepseek-v3.2 (deepseek-chat deprecated)
+  // deepseek-r1 → deepseek-r1-0528:free (free tier, newer build)
+  // qwen-2.5-coder-7b-instruct → added :free suffix for free tier
   const MODELS = [
-    { id: 'qwen/qwen-2.5-coder-32b-instruct', label: 'Qwen2.5 Coder 32B' },
-    { id: 'qwen/qwen-2.5-72b-instruct', label: 'Qwen2.5 72B' },
-    { id: 'qwen/qwen-2.5-coder-7b-instruct', label: 'Qwen2.5 Coder 7B (rápido)' },
-    { id: 'qwen/qwq-32b-preview', label: 'QwQ 32B Preview' },
-    { id: 'deepseek/deepseek-r1', label: 'DeepSeek R1' },
-    { id: 'deepseek/deepseek-chat', label: 'DeepSeek V3' },
+    { id: 'qwen/qwen-2.5-coder-32b-instruct',    label: 'Qwen2.5 Coder 32B' },
+    { id: 'qwen/qwen-2.5-72b-instruct',           label: 'Qwen2.5 72B' },
+    { id: 'qwen/qwen-2.5-coder-7b-instruct:free', label: 'Qwen2.5 Coder 7B (rápido)' },
+    { id: 'qwen/qwq-32b',                         label: 'QwQ 32B' },
+    { id: 'deepseek/deepseek-r1-0528:free',       label: 'DeepSeek R1' },
+    { id: 'deepseek/deepseek-v3.2',               label: 'DeepSeek V3.2' },
   ]
 
   useEffect(() => {
@@ -88,11 +201,7 @@ export default function Home() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
-        body: JSON.stringify({
-          messages: newMessages,
-          model,
-          apiKey,
-        }),
+        body: JSON.stringify({ messages: newMessages, model, apiKey }),
       })
 
       if (!res.ok) {
@@ -169,19 +278,13 @@ export default function Home() {
   }
 
   const renderContent = (content) => {
-    // Simple code block detection
     const parts = content.split(/(```[\s\S]*?```)/g)
     return parts.map((part, i) => {
       if (part.startsWith('```')) {
         const lines = part.slice(3).split('\n')
         const lang = lines[0].trim()
         const code = lines.slice(1, -1).join('\n')
-        return (
-          <div key={i} className="code-block">
-            {lang && <div className="code-lang">{lang}</div>}
-            <pre><code>{code}</code></pre>
-          </div>
-        )
+        return <CodeBlock key={i} lang={lang} code={code} />
       }
       return <span key={i} style={{ whiteSpace: 'pre-wrap' }}>{part}</span>
     })
@@ -204,7 +307,7 @@ export default function Home() {
           <div className="header-center">
             <button className="model-btn" onClick={() => setShowModelMenu(!showModelMenu)}>
               <span className="model-indicator" />
-              {MODELS.find(m => m.id === model)?.label || model}
+              <span className="model-label">{MODELS.find(m => m.id === model)?.label || model}</span>
               <span className="chevron">{showModelMenu ? '▲' : '▼'}</span>
             </button>
             {showModelMenu && (
@@ -219,7 +322,8 @@ export default function Home() {
                       setShowModelMenu(false)
                     }}
                   >
-                    {m.label}
+                    <span className="option-label">{m.label}</span>
+                    {model === m.id && <span className="option-check">✓</span>}
                   </button>
                 ))}
               </div>
@@ -227,15 +331,9 @@ export default function Home() {
           </div>
           <div className="header-actions">
             {tokenCount > 0 && <span className="token-count">{tokenCount.toLocaleString()} tok</span>}
-            <button className="hdr-btn" onClick={() => setShowKeyModal(true)} title="API Key">
-              KEY
-            </button>
-            <button className="hdr-btn" onClick={clearChat} title="Clear chat">
-              CLR
-            </button>
-            <Link href="/admin" className="hdr-btn admin-link">
-              ADMIN
-            </Link>
+            <button className="hdr-btn" onClick={() => setShowKeyModal(true)} title="API Key">KEY</button>
+            <button className="hdr-btn" onClick={clearChat} title="Clear chat">CLR</button>
+            <Link href="/admin" className="hdr-btn admin-link">ADMIN</Link>
           </div>
         </header>
 
@@ -245,7 +343,7 @@ export default function Home() {
             <div className="modal">
               <div className="modal-title">◈ OPENROUTER API KEY</div>
               <p className="modal-desc">
-                Necesitas una API key de OpenRouter para usar Qwen Coder.<br />
+                Necesitas una API key de OpenRouter.<br />
                 La key se guarda solo en tu navegador.
               </p>
               <input
@@ -257,21 +355,12 @@ export default function Home() {
                 onKeyDown={e => e.key === 'Enter' && saveKey()}
                 autoFocus
               />
-              <button className="modal-btn" onClick={saveKey}>
-                GUARDAR KEY
-              </button>
-              <a
-                href="https://openrouter.ai/keys"
-                target="_blank"
-                rel="noreferrer"
-                className="modal-link"
-              >
+              <button className="modal-btn" onClick={saveKey}>GUARDAR KEY</button>
+              <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer" className="modal-link">
                 → Obtener key gratis en openrouter.ai
               </a>
               {apiKey && (
-                <button className="modal-cancel" onClick={() => setShowKeyModal(false)}>
-                  cancelar
-                </button>
+                <button className="modal-cancel" onClick={() => setShowKeyModal(false)}>cancelar</button>
               )}
             </div>
           </div>
@@ -282,16 +371,11 @@ export default function Home() {
           {messages.length === 0 && (
             <div className="splash">
               <pre className="ascii">{SYSTEM_INTRO.join('\n')}</pre>
-              <div className="splash-sub">
-                Qwen Coder 32B — sin filtros, sin límites
-              </div>
+              <div className="splash-sub">sin filtros — sin límites</div>
               <div className="splash-tags">
-                <span className="tag">código</span>
-                <span className="tag">exploits</span>
-                <span className="tag">reversing</span>
-                <span className="tag">malware</span>
-                <span className="tag">pentesting</span>
-                <span className="tag">cualquier cosa</span>
+                {['código', 'exploits', 'reversing', 'malware', 'pentesting', 'cualquier cosa'].map(t => (
+                  <span key={t} className="tag">{t}</span>
+                ))}
               </div>
             </div>
           )}
@@ -345,58 +429,56 @@ export default function Home() {
               disabled={loading && !abortRef.current}
             />
             {loading ? (
-              <button className="send-btn stop-btn" onClick={stopGeneration}>
-                ■ STOP
-              </button>
+              <button className="send-btn stop-btn" onClick={stopGeneration}>■ STOP</button>
             ) : (
-              <button className="send-btn" onClick={sendMessage} disabled={!input.trim()}>
-                SEND ▶
-              </button>
+              <button className="send-btn" onClick={sendMessage} disabled={!input.trim()}>SEND ▶</button>
             )}
           </div>
           <div className="input-hint">
-            Enter — enviar · Shift+Enter — nueva línea · Modelos: OpenRouter
+            Enter — enviar · Shift+Enter — nueva línea · API: OpenRouter
           </div>
         </div>
       </div>
 
       <style jsx>{`
+        /* ── BASE ──────────────────────────────────────────────────────── */
         .layout {
           display: flex;
           flex-direction: column;
           height: 100vh;
-          background: #060606;
-          color: #c8ffc0;
+          background: #000;
+          color: #fff;
           font-family: 'Courier New', Courier, monospace;
           overflow: hidden;
         }
 
-        /* HEADER */
+        /* ── HEADER ────────────────────────────────────────────────────── */
         .header {
           display: flex;
           align-items: center;
           gap: 12px;
           padding: 0 16px;
-          height: 50px;
-          border-bottom: 1px solid #0d2a0d;
+          height: 52px;
+          border-bottom: 1px solid #333;
           flex-shrink: 0;
           position: relative;
           z-index: 10;
+          background: #000;
         }
 
         .logo {
           font-size: 17px;
           font-weight: bold;
           letter-spacing: 5px;
-          color: #00ff88;
+          color: #fff;
           white-space: nowrap;
         }
 
-        .logo-dot { color: #00aaff; }
+        .logo-dot { color: #fff; }
 
         .logo-ver {
           font-size: 10px;
-          color: #2a4a2a;
+          color: #444;
           margin-left: 6px;
           letter-spacing: 1px;
         }
@@ -411,60 +493,66 @@ export default function Home() {
         .model-btn {
           display: flex;
           align-items: center;
-          gap: 8px;
+          gap: 10px;
           background: transparent;
-          border: 1px solid #1a3a1a;
-          color: #6a9a6a;
-          padding: 5px 12px;
+          border: 1px solid #444;
+          color: #ccc;
+          padding: 6px 14px;
           cursor: pointer;
           font-family: 'Courier New', Courier, monospace;
-          font-size: 11px;
-          letter-spacing: 1px;
+          font-size: 12px;
+          letter-spacing: 0.5px;
           transition: all 0.15s;
         }
 
         .model-btn:hover {
-          border-color: #00ff88;
-          color: #00ff88;
+          border-color: #fff;
+          color: #fff;
+        }
+
+        .model-label {
+          font-size: 13px;
+          font-weight: bold;
         }
 
         .model-indicator {
           width: 7px;
           height: 7px;
           border-radius: 50%;
-          background: #00ff88;
-          box-shadow: 0 0 6px #00ff88;
+          background: #fff;
           animation: pulse 2s ease-in-out infinite;
         }
 
         @keyframes pulse {
           0%, 100% { opacity: 1; }
-          50% { opacity: 0.4; }
+          50% { opacity: 0.3; }
         }
 
-        .chevron { font-size: 8px; }
+        .chevron { font-size: 9px; color: #666; }
 
         .model-dropdown {
           position: absolute;
           top: calc(100% + 4px);
           left: 50%;
           transform: translateX(-50%);
-          background: #0a0f0a;
-          border: 1px solid #1a3a1a;
-          min-width: 240px;
+          background: #0a0a0a;
+          border: 1px solid #444;
+          min-width: 260px;
           z-index: 100;
         }
 
         .model-option {
-          display: block;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
           width: 100%;
-          padding: 9px 14px;
+          padding: 11px 16px;
           background: transparent;
           border: none;
-          border-bottom: 1px solid #0d1f0d;
-          color: #6a9a6a;
+          border-bottom: 1px solid #1a1a1a;
+          color: #aaa;
           font-family: 'Courier New', Courier, monospace;
-          font-size: 11px;
+          font-size: 13px;
           text-align: left;
           cursor: pointer;
           transition: all 0.1s;
@@ -472,9 +560,23 @@ export default function Home() {
 
         .model-option:last-child { border-bottom: none; }
 
-        .model-option:hover, .model-option.active {
-          background: #0d2a0d;
-          color: #00ff88;
+        .model-option:hover {
+          background: #111;
+          color: #fff;
+        }
+
+        .model-option.active {
+          background: #fff;
+          color: #000;
+        }
+
+        .model-option.active .option-label {
+          font-weight: bold;
+        }
+
+        .option-check {
+          font-size: 12px;
+          font-weight: bold;
         }
 
         .header-actions {
@@ -484,19 +586,19 @@ export default function Home() {
         }
 
         .token-count {
-          font-size: 10px;
-          color: #2a5a2a;
+          font-size: 11px;
+          color: #555;
           letter-spacing: 1px;
         }
 
         .hdr-btn {
           background: transparent;
-          border: 1px solid #1a2a1a;
-          color: #4a7a4a;
-          padding: 4px 10px;
+          border: 1px solid #333;
+          color: #888;
+          padding: 5px 11px;
           cursor: pointer;
           font-family: 'Courier New', Courier, monospace;
-          font-size: 10px;
+          font-size: 11px;
           letter-spacing: 2px;
           transition: all 0.15s;
           text-decoration: none;
@@ -504,26 +606,17 @@ export default function Home() {
         }
 
         .hdr-btn:hover {
-          border-color: #00ff88;
-          color: #00ff88;
+          border-color: #fff;
+          color: #fff;
         }
 
-        .admin-link {
-          border-color: #1a2a3a;
-          color: #4a6a9a;
-        }
+        .admin-link { color: #666; }
 
-        .admin-link:hover {
-          border-color: #00aaff;
-          color: #00aaff;
-          text-decoration: none;
-        }
-
-        /* MODAL */
+        /* ── MODAL ─────────────────────────────────────────────────────── */
         .modal-overlay {
           position: fixed;
           inset: 0;
-          background: rgba(0, 0, 0, 0.92);
+          background: rgba(0, 0, 0, 0.94);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -532,8 +625,8 @@ export default function Home() {
         }
 
         .modal {
-          background: #080d08;
-          border: 1px solid #00ff8840;
+          background: #0a0a0a;
+          border: 1px solid #444;
           padding: 32px;
           width: 440px;
           max-width: calc(100vw - 32px);
@@ -543,42 +636,42 @@ export default function Home() {
         }
 
         .modal-title {
-          font-size: 14px;
+          font-size: 15px;
           letter-spacing: 4px;
-          color: #00ff88;
+          color: #fff;
           font-weight: bold;
         }
 
         .modal-desc {
-          font-size: 12px;
-          color: #3a6a3a;
+          font-size: 13px;
+          color: #777;
           line-height: 1.6;
         }
 
         .modal-input {
-          background: #0a140a;
-          border: 1px solid #1a3a1a;
-          color: #c8ffc0;
-          padding: 11px 12px;
+          background: #111;
+          border: 1px solid #333;
+          color: #fff;
+          padding: 12px 14px;
           font-family: 'Courier New', Courier, monospace;
-          font-size: 13px;
+          font-size: 14px;
           width: 100%;
           outline: none;
           transition: border-color 0.15s;
         }
 
-        .modal-input:focus { border-color: #00ff88; }
+        .modal-input:focus { border-color: #fff; }
 
         .modal-btn {
-          background: #00ff88;
-          color: #040804;
+          background: #fff;
+          color: #000;
           border: none;
-          padding: 12px;
+          padding: 13px;
           cursor: pointer;
           font-family: 'Courier New', Courier, monospace;
           font-weight: bold;
           letter-spacing: 4px;
-          font-size: 12px;
+          font-size: 13px;
           transition: opacity 0.15s;
         }
 
@@ -586,26 +679,28 @@ export default function Home() {
 
         .modal-link {
           font-size: 12px;
-          color: #00aaff;
+          color: #888;
           text-align: center;
         }
+
+        .modal-link:hover { color: #fff; }
 
         .modal-cancel {
           background: transparent;
           border: none;
-          color: #3a5a3a;
+          color: #555;
           font-family: 'Courier New', Courier, monospace;
-          font-size: 11px;
+          font-size: 12px;
           cursor: pointer;
           text-align: center;
           text-decoration: underline;
         }
 
-        /* MESSAGES */
+        /* ── MESSAGES ──────────────────────────────────────────────────── */
         .messages {
           flex: 1;
           overflow-y: auto;
-          padding: 20px 16px;
+          padding: 20px 20px;
           display: flex;
           flex-direction: column;
           gap: 0;
@@ -617,14 +712,14 @@ export default function Home() {
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 16px;
+          gap: 18px;
           padding: 20px 0;
         }
 
         .ascii {
           font-size: 10px;
           line-height: 1.3;
-          color: #00ff8860;
+          color: #444;
           letter-spacing: 0;
           overflow-x: auto;
           white-space: pre;
@@ -636,8 +731,9 @@ export default function Home() {
 
         .splash-sub {
           font-size: 13px;
-          color: #2a6a2a;
-          letter-spacing: 2px;
+          color: #555;
+          letter-spacing: 3px;
+          text-transform: uppercase;
         }
 
         .splash-tags {
@@ -648,17 +744,17 @@ export default function Home() {
         }
 
         .tag {
-          font-size: 11px;
-          padding: 3px 10px;
-          border: 1px solid #1a3a1a;
-          color: #2a5a2a;
+          font-size: 12px;
+          padding: 4px 11px;
+          border: 1px solid #2a2a2a;
+          color: #555;
           letter-spacing: 1px;
         }
 
-        /* MESSAGE */
+        /* ── SINGLE MESSAGE ────────────────────────────────────────────── */
         .msg {
-          border-bottom: 1px solid #0a1a0a;
-          padding: 14px 0;
+          border-bottom: 1px solid #111;
+          padding: 16px 0;
         }
 
         .msg:last-child { border-bottom: none; }
@@ -667,56 +763,33 @@ export default function Home() {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          margin-bottom: 8px;
+          margin-bottom: 10px;
         }
 
         .msg-role {
-          font-size: 10px;
+          font-size: 11px;
           letter-spacing: 3px;
           font-weight: bold;
         }
 
-        .msg-user .msg-role { color: #00ff88; }
-        .msg-assistant .msg-role { color: #00aaff; }
+        .msg-user .msg-role   { color: #fff; }
+        .msg-assistant .msg-role { color: #aaa; }
 
         .msg-idx {
-          font-size: 10px;
-          color: #1a3a1a;
+          font-size: 11px;
+          color: #2a2a2a;
         }
 
         .msg-body {
-          font-size: 14px;
-          line-height: 1.65;
-          color: #b8e8b0;
+          font-size: 15px;
+          line-height: 1.7;
+          color: #ddd;
           word-break: break-word;
         }
 
-        .msg-user .msg-body { color: #80b880; }
+        .msg-user .msg-body { color: #fff; }
 
-        .code-block {
-          margin: 10px 0;
-          border: 1px solid #1a3a1a;
-          background: #040904;
-        }
-
-        .code-lang {
-          font-size: 10px;
-          padding: 4px 10px;
-          background: #0a1a0a;
-          color: #3a7a3a;
-          border-bottom: 1px solid #1a3a1a;
-          letter-spacing: 2px;
-        }
-
-        .code-block pre {
-          padding: 12px;
-          overflow-x: auto;
-          font-size: 13px;
-          line-height: 1.5;
-          color: #c8ffc0;
-        }
-
-        .code-block code { font-family: 'Courier New', Courier, monospace; }
+        /* code blocks → handled by <CodeBlock /> inline styles */
 
         @keyframes blink {
           0%, 100% { opacity: 1; }
@@ -724,28 +797,28 @@ export default function Home() {
         }
 
         .cursor {
-          color: #00aaff;
+          color: #fff;
           animation: blink 0.8s step-end infinite;
           margin-left: 2px;
         }
 
-        /* INPUT */
+        /* ── INPUT ─────────────────────────────────────────────────────── */
         .input-wrap {
           flex-shrink: 0;
-          border-top: 1px solid #0d2a0d;
-          padding: 12px 16px 10px;
-          background: #060606;
+          border-top: 1px solid #222;
+          padding: 12px 20px 10px;
+          background: #000;
         }
 
         .input-row {
           display: flex;
           align-items: flex-end;
-          gap: 8px;
+          gap: 10px;
         }
 
         .prompt {
-          color: #00ff88;
-          font-size: 20px;
+          color: #fff;
+          font-size: 22px;
           line-height: 1;
           padding-bottom: 10px;
           flex-shrink: 0;
@@ -753,59 +826,71 @@ export default function Home() {
 
         .input {
           flex: 1;
-          background: #040904;
-          border: 1px solid #1a3a1a;
-          color: #c8ffc0;
-          padding: 10px 12px;
+          background: #0a0a0a;
+          border: 1px solid #2a2a2a;
+          color: #fff;
+          padding: 10px 14px;
           font-family: 'Courier New', Courier, monospace;
-          font-size: 14px;
+          font-size: 15px;
           resize: none;
           line-height: 1.5;
-          min-height: 42px;
+          min-height: 44px;
           max-height: 200px;
           outline: none;
           transition: border-color 0.15s;
         }
 
-        .input:focus { border-color: #00ff8860; }
+        .input:focus { border-color: #666; }
 
-        .input::placeholder { color: #1a3a1a; }
+        .input::placeholder { color: #333; }
 
         .send-btn {
           background: transparent;
-          border: 1px solid #00ff88;
-          color: #00ff88;
-          padding: 10px 16px;
+          border: 1px solid #fff;
+          color: #fff;
+          padding: 10px 18px;
           cursor: pointer;
           font-family: 'Courier New', Courier, monospace;
-          font-size: 11px;
+          font-size: 12px;
           letter-spacing: 2px;
           white-space: nowrap;
           transition: all 0.15s;
           flex-shrink: 0;
         }
 
-        .send-btn:hover:not(:disabled) { background: #00ff8815; }
+        .send-btn:hover:not(:disabled) {
+          background: #fff;
+          color: #000;
+        }
 
         .send-btn:disabled {
-          border-color: #1a3a1a;
-          color: #1a3a1a;
+          border-color: #222;
+          color: #333;
           cursor: default;
         }
 
         .stop-btn {
-          border-color: #ff2d55;
-          color: #ff2d55;
+          border-color: #fff;
+          color: #fff;
         }
 
-        .stop-btn:hover { background: #ff2d5515; }
+        .stop-btn:hover {
+          background: #fff;
+          color: #000;
+        }
 
         .input-hint {
-          font-size: 10px;
-          color: #1a2a1a;
-          margin-top: 6px;
+          font-size: 11px;
+          color: #333;
+          margin-top: 7px;
           letter-spacing: 0.5px;
         }
+
+        /* ── SCROLLBAR ─────────────────────────────────────────────────── */
+        .messages::-webkit-scrollbar { width: 4px; }
+        .messages::-webkit-scrollbar-track { background: #000; }
+        .messages::-webkit-scrollbar-thumb { background: #222; }
+        .messages::-webkit-scrollbar-thumb:hover { background: #444; }
       `}</style>
     </>
   )
