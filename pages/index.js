@@ -339,8 +339,10 @@ export default function Home() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [apiKey, setApiKey] = useState('')
+  const [geminiKey, setGeminiKey] = useState('')
   const [showKeyModal, setShowKeyModal] = useState(false)
   const [keyInput, setKeyInput] = useState('')
+  const [geminiKeyInput, setGeminiKeyInput] = useState('')
   const [tokenCount, setTokenCount] = useState(0)
   const [model, setModel] = useState('qwen/qwen-2.5-coder-32b-instruct')
   const [showModelMenu, setShowModelMenu] = useState(false)
@@ -353,19 +355,24 @@ export default function Home() {
   const abortRef = useRef(null)
 
   const MODELS = [
-    { id: 'qwen/qwen-2.5-coder-32b-instruct', label: 'Qwen2.5 Coder 32B' },
-    { id: 'qwen/qwen-2.5-72b-instruct',        label: 'Qwen2.5 72B' },
-    { id: 'qwen/qwen3-coder:free',             label: 'Qwen3 Coder (rápido)' },
-    { id: 'qwen/qwq-32b:free',                 label: 'QwQ 32B' },
-    { id: 'deepseek/deepseek-r1',              label: 'DeepSeek R1' },
-    { id: 'deepseek/deepseek-v3.2',            label: 'DeepSeek V3.2' },
+    // ── OpenRouter models ────────────────────────────────────────────────────
+    { id: 'qwen/qwen-2.5-coder-32b-instruct', label: 'Qwen2.5 Coder 32B',   provider: 'openrouter' },
+    { id: 'qwen/qwen-2.5-72b-instruct',        label: 'Qwen2.5 72B',         provider: 'openrouter' },
+    { id: 'deepseek/deepseek-v3.2',            label: 'DeepSeek V3.2',        provider: 'openrouter' },
+    // ── Gemini (direct Google AI API) ────────────────────────────────────────
+    { id: 'gemini-2.0-flash',                  label: 'Gemini 2.0 Flash',     provider: 'gemini' },
+    { id: 'gemini-1.5-pro',                    label: 'Gemini 1.5 Pro',       provider: 'gemini' },
+    { id: 'gemini-1.5-flash',                  label: 'Gemini 1.5 Flash',     provider: 'gemini' },
   ]
+  const isGeminiModel = (id) => MODELS.find(m => m.id === id)?.provider === 'gemini'
 
   useEffect(() => {
     try {
       const stored = localStorage.getItem('blackhole_key')
+      const storedGemini = localStorage.getItem('blackhole_gemini_key')
       const storedModel = localStorage.getItem('blackhole_model')
       if (stored) setApiKey(stored)
+      if (storedGemini) setGeminiKey(storedGemini)
       if (storedModel) setModel(storedModel)
       const sp = localStorage.getItem('blackhole_sysprompt') || ''
       setSystemPrompt(sp); setSysInput(sp)
@@ -379,13 +386,24 @@ export default function Home() {
     setExitEntry(true)
     setTimeout(() => {
       setEntered(true)
-      if (!apiKey) setShowKeyModal(true)
+      if (!apiKey && !geminiKey) {
+        setKeyInput(''); setGeminiKeyInput(''); setShowKeyModal(true)
+      }
     }, 500)
   }
 
   const saveKey = () => {
     try { localStorage.setItem('blackhole_key', keyInput) } catch {}
-    setApiKey(keyInput); setShowKeyModal(false)
+    try { localStorage.setItem('blackhole_gemini_key', geminiKeyInput) } catch {}
+    setApiKey(keyInput)
+    setGeminiKey(geminiKeyInput)
+    setShowKeyModal(false)
+  }
+
+  const openKeyModal = () => {
+    setKeyInput(apiKey)
+    setGeminiKeyInput(geminiKey)
+    setShowKeyModal(true)
   }
 
   const clearChat = () => { setMessages([]); setTokenCount(0) }
@@ -418,7 +436,7 @@ export default function Home() {
       const res = await fetch('/api/chat', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
-        body: JSON.stringify({ messages: newMessages, model, apiKey, systemPrompt }),
+        body: JSON.stringify({ messages: newMessages, model, apiKey, geminiKey, systemPrompt }),
       })
       if (!res.ok) {
         const err = await res.json()
@@ -456,7 +474,7 @@ export default function Home() {
         })
       }
     } finally { setLoading(false); abortRef.current = null }
-  }, [input, messages, loading, apiKey, model, systemPrompt])
+  }, [input, messages, loading, apiKey, geminiKey, model, systemPrompt])
 
   const handleKeyDown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }
   const handleTextareaInput = (e) => {
@@ -521,7 +539,7 @@ export default function Home() {
             <button className={`hdr-btn ${systemPrompt ? 'sys-active' : ''}`} onClick={() => setShowSysModal(true)}>
               {systemPrompt && <span className="sys-dot" />}SYS
             </button>
-            <button className="hdr-btn" onClick={() => setShowKeyModal(true)}>KEY</button>
+            <button className="hdr-btn" onClick={openKeyModal}>KEY</button>
             <button className="hdr-btn" onClick={clearChat}>CLR</button>
             <Link href="/admin" className="hdr-btn">ADM</Link>
           </div>
@@ -529,16 +547,25 @@ export default function Home() {
 
         {/* API KEY MODAL */}
         {showKeyModal && (
-          <div className="modal-overlay" onClick={e => e.target === e.currentTarget && apiKey && setShowKeyModal(false)}>
+          <div className="modal-overlay" onClick={e => e.target === e.currentTarget && (apiKey || geminiKey) && setShowKeyModal(false)}>
             <div className="modal">
-              <div className="modal-title">◈ OPENROUTER API KEY</div>
-              <p className="modal-desc">La key se guarda en tu navegador, no en ningún servidor.</p>
+              <div className="modal-title">◈ API KEYS</div>
+              <p className="modal-desc">Las keys se guardan en tu navegador, nunca en el servidor.</p>
+
+              <label className="modal-label">OPENROUTER KEY</label>
               <input type="password" className="modal-input" placeholder="sk-or-v1-..."
                 value={keyInput} onChange={e => setKeyInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && saveKey()} autoFocus />
-              <button className="modal-btn" onClick={saveKey}>CONECTAR</button>
               <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer" className="modal-link">→ openrouter.ai/keys</a>
-              {apiKey && <button className="modal-cancel" onClick={() => setShowKeyModal(false)}>cancelar</button>}
+
+              <label className="modal-label" style={{ marginTop: '14px' }}>GOOGLE GEMINI KEY</label>
+              <input type="password" className="modal-input" placeholder="AIza..."
+                value={geminiKeyInput} onChange={e => setGeminiKeyInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && saveKey()} />
+              <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="modal-link">→ aistudio.google.com/app/apikey</a>
+
+              <button className="modal-btn" onClick={saveKey} style={{ marginTop: '16px' }}>GUARDAR</button>
+              {(apiKey || geminiKey) && <button className="modal-cancel" onClick={() => setShowKeyModal(false)}>cancelar</button>}
             </div>
           </div>
         )}
@@ -801,6 +828,7 @@ export default function Home() {
         }
         .modal-title { font-size: 13px; letter-spacing: 5px; color: #fff; font-weight: bold; }
         .modal-desc { font-size: 12px; color: #555; line-height: 1.6; }
+        .modal-label { font-size: 10px; letter-spacing: 3px; color: #3a6a8a; }
         .modal-input {
           background: #0a0a0a;
           border: 1px solid #1e1e1e;
