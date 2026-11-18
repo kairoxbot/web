@@ -10,7 +10,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const { messages, model: reqModel, apiKey: clientKey } = req.body
+  const { messages, model: reqModel, apiKey: clientKey, systemPrompt } = req.body
 
   // Use server env key first, then fall back to client-provided key
   const apiKey = process.env.OPENROUTER_API_KEY || clientKey
@@ -23,6 +23,11 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Invalid messages array' })
   }
 
+  // Prepend system prompt if set
+  const finalMessages = systemPrompt?.trim()
+    ? [{ role: 'system', content: systemPrompt.trim() }, ...messages]
+    : messages
+
   try {
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -34,7 +39,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: reqModel || 'qwen/qwen-2.5-coder-32b-instruct',
-        messages: messages,
+        messages: finalMessages,
         stream: true,
         temperature: 0.7,
         max_tokens: 8192,
