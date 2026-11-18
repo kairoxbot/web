@@ -1,0 +1,52 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+body {
+  background: #050505;
+  color: #c0ffb0;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: #00ff8840;
+  color: #00ff88;
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1a3a1a;
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #2a5a2a;
+}
+
+a {
+  color: #00aaff;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+pre, code {
+  font-family: 'Courier New', Courier, monospace;
+}
