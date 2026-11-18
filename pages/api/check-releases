@@ -1,0 +1,249 @@
+// lang: JavaScript, file: pages/api/check-releases.js
+// target: Vercel serverless + Vercel Cron
+// purpose: Monitor public free cybersecurity/AI databases and datasets releases,
+//          send new ones to Discord webhook (and optionally MediaFire)
+// cron:    configured in vercel.json — runs every 6 hours
+
+// ── Persistent seen-IDs store (Vercel KV or fallback to env-encoded string) ──
+// If VERCEL_KV is not configured, we use a lightweight approach: store a
+// comma-separated list of seen IDs in an env var via Vercel API.
+// In production, switch to @vercel/kv or Redis for real persistence.
+
+const DISCORD_WEBHOOK = process.env.DISCORD_WEBHOOK_URL
+const CRON_SECRET     = process.env.CRON_SECRET || ''
+const SITE_URL        = process.env.SITE_URL || 'https://blackhole.ai'
+
+// ── Sources to monitor ────────────────────────────────────────────────────────
+// Each source returns an array of { id, title, url, description, date, tags[] }
+const SOURCES = [
+  fetchNVDRecent,
+  fetchExploitDBRecent,
+  fetchHuggingFaceSecurityDatasets,
+  fetchGitHubSecurityReleases,
+]
+
+// NVD — National Vulnerability Database (official CVE feed)
+async function fetchNVDRecent() {
+  try {
+    const url = 'https://services.nvd.nist.gov/rest/json/cves/2.0?resultsPerPage=10&startIndex=0'
+    const r = await fetch(url, { headers: { 'User-Agent': 'BlackholeAI-ReleaseBot/1.0' } })
+    if (!r.ok) return []
+    const data = await r.json()
+    return (data.vulnerabilities || []).slice(0, 5).map(v => {
+      const cve = v.cve
+      const desc = cve.descriptions?.find(d => d.lang === 'en')?.value || ''
+      const score = cve.metrics?.cvssMetricV31?.[0]?.cvssData?.baseScore
+        || cve.metrics?.cvssMetricV30?.[0]?.cvssData?.baseScore || null
+      return {
+        id: `nvd-${cve.id}`,
+        title: cve.id,
+        url: `https://nvd.nist.gov/vuln/detail/${cve.id}`,
+        description: desc.slice(0, 300),
+        date: cve.published,
+        tags: ['CVE', 'NVD', score ? `CVSS ${score}` : 'unscored'],
+      }
+    })
+  } catch { return [] }
+}
+
+// ExploitDB — public exploit database RSS
+async function fetchExploitDBRecent() {
+  try {
+    const r = await fetch('https://www.exploit-db.com/rss.xml', {
+      headers: { 'User-Agent': 'BlackholeAI-ReleaseBot/1.0' }
+    })
+    if (!r.ok) return []
+    const xml = await r.text()
+    const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 5)
+    return items.map(m => {
+      const block = m[1]
+      const title = (block.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/) || block.match(/<title>(.*?)<\/title>/))?.[1] || 'Exploit'
+      const link  = (block.match(/<link>(.*?)<\/link>/))?.[1] || ''
+      const date  = (block.match(/<pubDate>(.*?)<\/pubDate>/))?.[1] || ''
+      const desc  = (block.match(/<description><!\[CDATA\[(.*?)\]\]><\/description>/) || ['', ''])[1].replace(/<[^>]+>/g, '').slice(0, 200)
+      const id    = link.replace(/\D/g, '').slice(-8) || Math.random().toString(36).slice(2)
+      return {
+        id: `edb-${id}`,
+        title,
+        url: link || 'https://www.exploit-db.com',
+        description: desc,
+        date,
+        tags: ['ExploitDB', 'Exploit'],
+      }
+    })
+  } catch { return [] }
+}
+
+// Hugging Face — security-related datasets (new uploads)
+async function fetchHuggingFaceSecurityDatasets() {
+  try {
+    const r = await fetch(
+      'https://huggingface.co/api/datasets?search=security&sort=lastModified&direction=-1&limit=5',
+      { headers: { 'User-Agent': 'BlackholeAI-ReleaseBot/1.0' } }
+    )
+    if (!r.ok) return []
+    const data = await r.json()
+    return data.slice(0, 5).map(ds => ({
+      id: `hf-${ds.id}`,
+      title: ds.id,
+      url: `https://huggingface.co/datasets/${ds.id}`,
+      description: (ds.description || '').slice(0, 200),
+      date: ds.lastModified,
+      tags: ['HuggingFace', 'Dataset', 'Free'],
+    }))
+  } catch { return [] }
+}
+
+// GitHub — latest releases of popular security/db tools
+const SECURITY_REPOS = [
+  'sqlitebrowser/sqlitebrowser',
+  'duckdb/duckdb',
+  'nicowillis/go-exploit',
+  'projectdiscovery/nuclei',
+  'projectdiscovery/katana',
+  'OJ/gobuster',
+  'fuzzdb-project/fuzzdb',
+]
+
+async function fetchGitHubSecurityReleases() {
+  const results = []
+  for (const repo of SECURITY_REPOS.slice(0, 4)) {
+    try {
+      const r = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {
+        headers: {
+          'User-Agent': 'BlackholeAI-ReleaseBot/1.0',
+          'Accept': 'application/vnd.github.v3+json',
+          ...(process.env.GITHUB_TOKEN ? { 'Authorization': `token ${process.env.GITHUB_TOKEN}` } : {}),
+        },
+      })
+      if (!r.ok) continue
+      const rel = await r.json()
+      if (!rel.tag_name) continue
+      results.push({
+        id: `gh-${repo.replace('/', '-')}-${rel.tag_name}`,
+        title: `${repo.split('/')[1]} ${rel.tag_name}`,
+        url: rel.html_url,
+        description: (rel.body || '').replace(/[#*`]/g, '').slice(0, 250),
+        date: rel.published_at,
+        tags: ['GitHub', 'Release', repo.split('/')[0]],
+        assets: rel.assets?.map(a => ({
+          name: a.name,
+          url: a.browser_download_url,
+          size: a.size,
+        })) || [],
+      })
+    } catch {}
+  }
+  return results
+}
+
+// ── Discord embed sender ──────────────────────────────────────────────────────
+async function sendDiscord(items) {
+  if (!DISCORD_WEBHOOK) return { sent: 0, error: 'No webhook configured' }
+  let sent = 0
+  for (const item of items) {
+    const color = item.tags.includes('CVE') ? 0xFF4444
+      : item.tags.includes('ExploitDB') ? 0xFF8C00
+      : item.tags.includes('Dataset') ? 0x00AAFF
+      : 0x00FF88
+
+    const embed = {
+      title: item.title.slice(0, 256),
+      url: item.url,
+      description: item.description || '—',
+      color,
+      fields: [
+        { name: 'Tags', value: item.tags.join(' · ') || '—', inline: true },
+        { name: 'Date', value: item.date ? new Date(item.date).toUTCString().slice(0, 25) : '—', inline: true },
+      ],
+      footer: { text: `BlackholeAI Release Monitor · ${SITE_URL}` },
+      timestamp: new Date().toISOString(),
+    }
+
+    if (item.assets?.length) {
+      const list = item.assets.slice(0, 5).map(a =>
+        `[${a.name}](${a.url}) (${(a.size / 1024 / 1024).toFixed(1)} MB)`
+      ).join('\n')
+      embed.fields.push({ name: 'Downloads', value: list, inline: false })
+    }
+
+    try {
+      const r = await fetch(DISCORD_WEBHOOK, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: 'BlackholeAI · Release Monitor',
+          avatar_url: 'https://cdn.discordapp.com/embed/avatars/0.png',
+          embeds: [embed],
+        }),
+      })
+      if (r.ok) sent++
+      await new Promise(resolve => setTimeout(resolve, 500)) // Discord rate limit
+    } catch {}
+  }
+  return { sent }
+}
+
+// ── Seen-IDs store (edge-compatible, no DB required) ─────────────────────────
+// Using a Vercel KV compatible interface via global Map (resets on cold start).
+// For true persistence across deploys, plug in @vercel/kv or Upstash Redis.
+const seenIdsCache = new Set()
+let seenLoaded = false
+
+function markSeen(ids) {
+  for (const id of ids) seenIdsCache.add(id)
+}
+
+function filterNew(items) {
+  if (!seenLoaded) {
+    // Try to seed from env on first run
+    const encoded = process.env.SEEN_IDS_CACHE || ''
+    if (encoded) encoded.split(',').forEach(id => seenIdsCache.add(id.trim()))
+    seenLoaded = true
+  }
+  return items.filter(item => !seenIdsCache.has(item.id))
+}
+
+// ── Main handler ──────────────────────────────────────────────────────────────
+export default async function handler(req, res) {
+  // Secure cron endpoint — only callable with secret or by Vercel Cron itself
+  if (req.method !== 'POST' && req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' })
+  }
+
+  const authHeader = req.headers['authorization'] || ''
+  const cronHeader = req.headers['x-vercel-cron-signature'] || req.headers['x-cron-secret'] || ''
+
+  if (CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}` && cronHeader !== CRON_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  try {
+    // Fetch all sources in parallel
+    const allResults = await Promise.allSettled(SOURCES.map(fn => fn()))
+    const allItems = allResults
+      .filter(r => r.status === 'fulfilled')
+      .flatMap(r => r.value || [])
+
+    // Filter to only new items
+    const newItems = filterNew(allItems)
+    markSeen(newItems.map(i => i.id))
+
+    if (newItems.length === 0) {
+      return res.status(200).json({ status: 'ok', new: 0, message: 'Nothing new.' })
+    }
+
+    // Send to Discord
+    const discordResult = await sendDiscord(newItems)
+
+    return res.status(200).json({
+      status: 'ok',
+      new: newItems.length,
+      discord: discordResult,
+      items: newItems.map(i => ({ id: i.id, title: i.title, url: i.url, tags: i.tags })),
+    })
+  } catch (err) {
+    console.error('[check-releases error]', err)
+    return res.status(500).json({ error: err.message })
+  }
+}
