@@ -19,17 +19,17 @@ export default function Home() {
   const [showKeyModal, setShowKeyModal] = useState(false)
   const [keyInput, setKeyInput] = useState('')
   const [tokenCount, setTokenCount] = useState(0)
-  const [model, setModel] = useState('qwen/qwen2.5-coder-32b-instruct')
+  const [model, setModel] = useState('qwen/qwen-2.5-coder-32b-instruct')
   const [showModelMenu, setShowModelMenu] = useState(false)
   const messagesEndRef = useRef(null)
   const textareaRef = useRef(null)
   const abortRef = useRef(null)
 
   const MODELS = [
-    { id: 'qwen/qwen2.5-coder-32b-instruct', label: 'Qwen2.5 Coder 32B' },
+    { id: 'qwen/qwen-2.5-coder-32b-instruct', label: 'Qwen2.5 Coder 32B' },
     { id: 'qwen/qwen-2.5-72b-instruct', label: 'Qwen2.5 72B' },
     { id: 'qwen/qwen-2.5-coder-7b-instruct', label: 'Qwen2.5 Coder 7B (rápido)' },
-    { id: 'qwen/qvq-72b-preview', label: 'QwQ 72B Preview' },
+    { id: 'qwen/qwq-32b-preview', label: 'QwQ 32B Preview' },
     { id: 'deepseek/deepseek-r1', label: 'DeepSeek R1' },
     { id: 'deepseek/deepseek-chat', label: 'DeepSeek V3' },
   ]
