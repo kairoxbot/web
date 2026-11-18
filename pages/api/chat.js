@@ -10,7 +10,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const { messages, apiKey: clientKey } = req.body
+  const { messages, model: reqModel, apiKey: clientKey } = req.body
 
   // Use server env key first, then fall back to client-provided key
   const apiKey = process.env.OPENROUTER_API_KEY || clientKey
@@ -33,7 +33,7 @@ export default async function handler(req, res) {
         'X-Title': 'NoobAI',
       },
       body: JSON.stringify({
-        model: 'qwen/qwen2.5-coder-32b-instruct',
+        model: reqModel || 'qwen/qwen-2.5-coder-32b-instruct',
         messages: messages,
         stream: true,
         temperature: 0.7,
