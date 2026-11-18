@@ -360,9 +360,9 @@ export default function Home() {
     { id: 'qwen/qwen-2.5-72b-instruct',        label: 'Qwen2.5 72B',         provider: 'openrouter' },
     { id: 'deepseek/deepseek-v3.2',            label: 'DeepSeek V3.2',        provider: 'openrouter' },
     // ── Gemini (direct Google AI API) ────────────────────────────────────────
-    { id: 'gemini-2.0-flash',                  label: 'Gemini 2.0 Flash',     provider: 'gemini' },
-    { id: 'gemini-1.5-pro',                    label: 'Gemini 1.5 Pro',       provider: 'gemini' },
-    { id: 'gemini-1.5-flash',                  label: 'Gemini 1.5 Flash',     provider: 'gemini' },
+    { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash', provider: 'gemini' },
+    { id: 'gemini-3.7-flash', label: 'Gemini 3.7 Flash', provider: 'gemini' },
+    { id: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash', provider: 'gemini' },
   ]
   const isGeminiModel = (id) => MODELS.find(m => m.id === id)?.provider === 'gemini'
 
